@@ -1,0 +1,444 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>MediKiosk — AI Smart Patient Intake Kiosk</title>
+    <meta name="description" content="Self-service hands-free medical intake kiosk for government hospitals. Powered by AI." />
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+</head>
+<body>
+
+<!-- AUDIO AUTOPLAY UNLOCK OVERLAY (Hands-free Browser Gesture Unlock) -->
+<div class="audio-splash-overlay" id="audio-splash-overlay" onclick="unlockAudioAndStart()">
+    <div class="splash-card">
+        <div class="splash-icon">
+            <span class="material-symbols-outlined icon-filled" style="font-size:52px">graphic_eq</span>
+        </div>
+        <h1 class="splash-title">MediKiosk Medical Intake</h1>
+        <p class="splash-subtitle">Touch or say anything to start hands-free voice registration.<br/><span style="font-size:15px;color:var(--cyan-primary)">प्रारंभ करने के लिए स्क्रीन पर कहीं भी टच करें</span></p>
+        <button class="splash-btn">
+            <span>START INTAKE / प्रारंभ करें</span>
+        </button>
+    </div>
+</div>
+
+<div class="app-container" id="app">
+    <!-- ============================================ -->
+    <!-- HEADER (Persistent Kiosk Bar)                -->
+    <!-- ============================================ -->
+    <header class="app-header" id="app-header">
+        <div class="brand-badge">
+            <div class="brand-icon">
+                <span class="material-symbols-outlined icon-filled" style="font-size:28px">local_hospital</span>
+            </div>
+            <div class="brand-title">MediKiosk</div>
+        </div>
+
+        <!-- Progress Stepper -->
+        <div class="header-stepper">
+            <div class="step-dot active" id="step-dot-1">
+                <div class="step-number">1</div>
+                <span>Language</span>
+            </div>
+            <div class="step-divider"></div>
+            <div class="step-dot" id="step-dot-2">
+                <div class="step-number">2</div>
+                <span>Consent</span>
+            </div>
+            <div class="step-divider"></div>
+            <div class="step-dot" id="step-dot-3">
+                <div class="step-number">3</div>
+                <span>Consultation</span>
+            </div>
+            <div class="step-divider"></div>
+            <div class="step-dot" id="step-dot-4">
+                <div class="step-number">4</div>
+                <span>Scan ID</span>
+            </div>
+            <div class="step-divider"></div>
+            <div class="step-dot" id="step-dot-5">
+                <div class="step-number">5</div>
+                <span>Vitals</span>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <!-- Voice Status Indicator -->
+            <div class="voice-status-pill" id="voice-status-pill">
+                <span class="material-symbols-outlined icon-filled" id="voice-status-icon" style="font-size:20px">mic</span>
+                <span id="voice-status-text">Voice Ready</span>
+            </div>
+
+            <button class="btn-icon-soft" id="btn-tts" aria-label="Text to speech" onclick="toggleTTS()">
+                <span class="material-symbols-outlined icon-filled" style="font-size:24px">volume_up</span>
+            </button>
+            <button class="btn-start-over" id="btn-start-over" onclick="startOver()">Reset</button>
+        </div>
+    </header>
+
+    <!-- ============================================ -->
+    <!-- SCREEN CONTAINER                             -->
+    <!-- ============================================ -->
+    <div class="screen-container">
+
+        <!-- ======================================== -->
+        <!-- SCREEN 1: Welcome & Language Selection   -->
+        <!-- ======================================== -->
+        <div class="screen welcome-screen active" id="screen-welcome">
+            <div class="welcome-container">
+                <div class="welcome-header-box">
+                    <div class="welcome-badge">
+                        <span class="material-symbols-outlined icon-filled" style="font-size:18px">translate</span>
+                        <span>Hands-Free Multilingual AI</span>
+                    </div>
+                    <h1 class="page-title" id="welcome-title">Select Your Preferred Language</h1>
+                    <p style="color:var(--text-secondary);font-size:18px">or simply speak your response out loud</p>
+                </div>
+
+                <div class="language-grid" id="language-grid">
+                    <button class="language-card" data-lang="en" onclick="selectLanguage('en', this)">
+                        <div class="lang-code">EN</div>
+                        <div class="lang-name">English</div>
+                    </button>
+                    <button class="language-card" data-lang="hi" onclick="selectLanguage('hi', this)">
+                        <div class="lang-code">HI</div>
+                        <div class="lang-name">हिन्दी</div>
+                    </button>
+                    <button class="language-card" data-lang="ta" onclick="selectLanguage('ta', this)">
+                        <div class="lang-code">TA</div>
+                        <div class="lang-name">தமிழ்</div>
+                    </button>
+                    <button class="language-card" data-lang="bn" onclick="selectLanguage('bn', this)">
+                        <div class="lang-code">BN</div>
+                        <div class="lang-name">বাংলা</div>
+                    </button>
+                    <button class="language-card" data-lang="mr" onclick="selectLanguage('mr', this)">
+                        <div class="lang-code">MR</div>
+                        <div class="lang-name">मराठी</div>
+                    </button>
+                </div>
+
+                <button class="btn-giant" id="btn-start" onclick="goToConsent()" disabled>
+                    <span>BEGIN INTAKE</span>
+                    <span class="material-symbols-outlined icon-filled" style="font-size:32px">arrow_forward</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- SCREEN 2: Privacy & Consent              -->
+        <!-- ======================================== -->
+        <div class="screen consent-screen" id="screen-consent">
+            <div class="consent-container">
+                <div class="shield-badge">
+                    <span class="material-symbols-outlined icon-filled" style="font-size:52px">verified_user</span>
+                </div>
+                <div>
+                    <h1 class="page-title" id="consent-title">We will ask you about your medical symptoms</h1>
+                    <p style="font-size:20px;color:var(--text-secondary);margin-top:8px" id="consent-subtitle">Your medical information is strictly encrypted and confidential.</p>
+                </div>
+
+                <div class="consent-actions">
+                    <div class="consent-card consent-card-disagree" onclick="handleConsent(false)">
+                        <span class="material-symbols-outlined icon-filled" style="font-size:64px;color:var(--rose-danger)">cancel</span>
+                        <div class="consent-card-title" id="btn-disagree-text">I Do Not Agree</div>
+                        <span style="font-size:14px;color:var(--text-muted)">Say "No" or "Disagree"</span>
+                    </div>
+
+                    <div class="consent-card consent-card-agree" onclick="handleConsent(true)">
+                        <span class="material-symbols-outlined icon-filled" style="font-size:64px;color:var(--emerald-success)">check_circle</span>
+                        <div class="consent-card-title" id="btn-agree-text">I Agree</div>
+                        <span style="font-size:14px;color:var(--text-muted)">Say "Yes" or "Agree"</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- SCREEN ABHA 1: Register With ABHA Number -->
+        <!-- ======================================== -->
+        <div class="screen abha-screen" id="screen-abha">
+            <div class="abha-modal-card">
+                <div class="abha-top-bar">
+                    <button class="abha-back-btn" onclick="goBack()"><span class="material-symbols-outlined">chevron_left</span></button>
+                    <h2 class="abha-header-title">Register With ABHA Number</h2>
+                </div>
+
+                <div class="abha-body">
+                    <div class="input-group-abha">
+                        <label class="abha-label">ABHA Number</label>
+                        <input type="text" id="abha-input" class="abha-text-input" placeholder="00-0000-0000-0000" />
+                        <div class="abha-forgot-link" onclick="openAbhaLoginModal()">Forgot ABHA number?</div>
+                    </div>
+
+                    <div class="abha-validate-section">
+                        <label class="abha-label">Validate using</label>
+                        <div class="abha-validate-grid">
+                            <div class="abha-validate-card active" id="val-aadhaar" onclick="selectAbhaValidation('aadhaar')">
+                                <div class="val-icon-box">
+                                    <span class="material-symbols-outlined icon-filled">fingerprint</span>
+                                </div>
+                                <div class="val-card-text">Aadhaar OTP</div>
+                            </div>
+                            <div class="abha-validate-card" id="val-mobile" onclick="selectAbhaValidation('mobile')">
+                                <div class="val-icon-box">
+                                    <span class="material-symbols-outlined icon-filled">smartphone</span>
+                                </div>
+                                <div class="val-card-text">Mobile OTP</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="abha-btn-continue" onclick="submitAbhaRegistration()">Continue</button>
+                    <div class="abha-create-footer">( Don't have an ABHA number? <span class="abha-link-orange" onclick="openAbhaLoginModal()">Create now</span> )</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- SCREEN ABHA 2: Login with Mobile Number  -->
+        <!-- ======================================== -->
+        <div class="screen abha-login-screen" id="screen-abha-login">
+            <div class="abha-modal-card">
+                <div class="abha-top-bar">
+                    <button class="abha-back-btn" onclick="showScreen('screen-abha')"><span class="material-symbols-outlined">chevron_left</span></button>
+                    <h2 class="abha-header-title">Login with Mobile Number</h2>
+                </div>
+
+                <div class="abha-body">
+                    <p class="abha-instruction-text">Select the ABHA address through which you wish to login</p>
+                    
+                    <div class="abha-radio-list">
+                        <label class="abha-radio-item">
+                            <input type="radio" name="abha_address" value="shrutijadhav29@sbx" checked />
+                            <span>shrutijadhav29@sbx</span>
+                        </label>
+                        <label class="abha-radio-item">
+                            <input type="radio" name="abha_address" value="shrutijadhav@sbx" />
+                            <span>shrutijadhav@sbx</span>
+                        </label>
+                        <label class="abha-radio-item">
+                            <input type="radio" name="abha_address" value="shrutijadhav28@sbx" />
+                            <span>shrutijadhav28@sbx</span>
+                        </label>
+                        <label class="abha-radio-item">
+                            <input type="radio" name="abha_address" value="shruti145@sbx" />
+                            <span>shruti145@sbx</span>
+                        </label>
+                        <label class="abha-radio-item">
+                            <input type="radio" name="abha_address" value="shrutijadhav27@sbx" />
+                            <span>shrutijadhav27@sbx</span>
+                        </label>
+                    </div>
+
+                    <button class="abha-btn-blue" onclick="completeAbhaLogin()">LOGIN</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- SCREEN 3: Follow-up Questions (AI Chat)  -->
+        <!-- ======================================== -->
+        <div class="screen chat-screen" id="screen-chat">
+            <div class="chat-wrapper">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                        <h1 style="font-family:var(--font-heading);font-size:28px;font-weight:700" id="chat-title">AI Medical Assessment</h1>
+                    </div>
+                </div>
+
+                <!-- Body Pointing Camera Tracker Modal Overlay -->
+                <div class="body-pointing-banner" id="body-pointing-banner" style="display:none">
+                    <span class="material-symbols-outlined icon-filled" style="font-size:28px">videocam</span>
+                    <span id="body-pointing-status">AI requested body pointing — Opening camera tracker...</span>
+                </div>
+
+                <div class="camera-tracker-overlay" id="camera-tracker-overlay" style="display:none">
+                    <div class="camera-tracker-card">
+                        <div class="camera-tracker-header">
+                            <div class="camera-title-box">
+                                <span class="material-symbols-outlined icon-filled" style="color:var(--cyan-accent);font-size:28px">videocam</span>
+                                <div>
+                                    <h3 style="font-size:20px;font-weight:800;color:var(--text-dark)">Body Pointing Camera Tracker</h3>
+                                    <p style="font-size:13px;color:var(--text-muted)">Point index finger to symptom location on your body</p>
+                                </div>
+                            </div>
+                            <button class="camera-close-btn" onclick="closeCameraTracker()"><span class="material-symbols-outlined">close</span></button>
+                        </div>
+                        <div class="camera-video-wrapper">
+                            <video id="tablet-camera-video" autoplay playsinline muted></video>
+                            <canvas id="tablet-camera-canvas"></canvas>
+                            <div class="camera-scan-line"></div>
+                        </div>
+                        <div class="camera-status-footer" id="camera-status-footer">
+                            <span class="material-symbols-outlined icon-filled" style="color:var(--cyan-accent);font-size:20px">center_focus_strong</span>
+                            <span id="tracker-live-text">Initializing tablet camera & GPU MediaPipe tracker...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-box" id="chat-container">
+                    <!-- Chat bubbles rendered dynamically -->
+                </div>
+
+                <div class="quick-replies" id="quick-replies">
+                    <button class="quick-reply-chip" onclick="sendQuickReply('Yes')">Yes</button>
+                    <button class="quick-reply-chip" onclick="sendQuickReply('No')">No</button>
+                    <button class="quick-reply-chip" onclick="sendQuickReply('A few days')">A few days</button>
+                    <button class="quick-reply-chip" onclick="sendQuickReply('Severe pain')">Severe pain</button>
+                </div>
+
+                <div class="chat-input-bar">
+                    <input id="chat-input" placeholder="Speak or type your answer..." autocomplete="off" onkeydown="if(event.key==='Enter')sendChatMessage()" />
+                    <button class="btn-mic-main" id="btn-mic" onclick="toggleMic()" aria-label="Speak">
+                        <span class="material-symbols-outlined icon-filled" style="font-size:28px">mic</span>
+                    </button>
+                    <button class="btn-send" onclick="sendChatMessage()" aria-label="Send">
+                        <span class="material-symbols-outlined icon-filled" style="font-size:28px">send</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- SCREEN 4: Document Scanning              -->
+        <!-- ======================================== -->
+        <div class="screen scan-screen" id="screen-scan">
+            <div class="scan-wrapper">
+                <div>
+                    <h1 class="page-title" id="scan-title">Place Your ID Document on the Tray</h1>
+                    <p style="font-size:18px;color:var(--text-secondary);margin-top:8px" id="scan-subtitle">Qwen Vision AI will scan and capture your medical records automatically.</p>
+                </div>
+
+                <div class="scan-viewfinder" id="scan-preview" style="position:relative;overflow:hidden;background:#000000;display:flex;align-items:center;justify-content:center">
+                    <video id="ocr-camera-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:none"></video>
+                    <canvas id="ocr-camera-canvas" style="display:none"></canvas>
+                    <div id="ocr-camera-placeholder" style="display:flex;flex-direction:column;align-items:center;gap:12px">
+                        <span class="material-symbols-outlined icon-filled" style="font-size:72px;color:var(--border-cyan)">document_scanner</span>
+                        <span style="font-size:16px;color:var(--text-muted)">Position document inside scanner frame</span>
+                    </div>
+                    <div class="camera-scan-line"></div>
+                </div>
+
+                <button class="btn-giant" id="btn-scan" onclick="scanDocument()">
+                    <span class="material-symbols-outlined icon-filled" style="font-size:28px">photo_camera</span>
+                    <span id="scan-btn-text">Scan Document Now</span>
+                </button>
+
+                <div class="ocr-result-card" id="ocr-result-box" style="display:none">
+                    <h3 style="color:var(--cyan-primary);font-size:16px;margin-bottom:8px">Qwen-VL Extracted Patient Data:</h3>
+                    <p id="ocr-result-text" style="font-size:15px;line-height:1.5;color:var(--text-secondary)"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- SCREEN 5: Live Vitals Display            -->
+        <!-- ======================================== -->
+        <div class="screen vitals-screen" id="screen-vitals">
+            <div class="vitals-wrapper">
+                <div class="vitals-alert-banner hidden" id="vitals-alert">
+                    <span class="material-symbols-outlined icon-filled" style="font-size:28px">notification_important</span>
+                    <span id="alert-text">Attention: Nursing staff notified for immediate evaluation.</span>
+                </div>
+
+                <div style="text-align:center">
+                    <h1 class="page-title" id="vitals-title">Place Finger on Pulse Sensor</h1>
+                    <p style="font-size:18px;color:var(--text-secondary);margin-top:8px" id="vitals-subtitle">Keep still while optical sensors sample heart rate and oxygen saturation.</p>
+                </div>
+
+                <div class="vitals-grid">
+                    <!-- Heart Rate -->
+                    <div class="vital-card">
+                        <div class="vital-status-pill normal" id="hr-badge">
+                            <span class="material-symbols-outlined icon-filled" style="font-size:16px">check_circle</span>
+                            <span>Normal</span>
+                        </div>
+                        <div class="vital-icon-box" style="background:rgba(244,63,94,0.15);color:var(--rose-danger)">
+                            <span class="material-symbols-outlined icon-filled" style="font-size:40px">favorite</span>
+                        </div>
+                        <div style="text-align:center">
+                            <div class="vital-value-text" id="hr-value" style="color:var(--rose-danger)">--</div>
+                            <div class="vital-unit">Heart Rate (BPM)</div>
+                        </div>
+                    </div>
+
+                    <!-- SpO2 -->
+                    <div class="vital-card">
+                        <div class="vital-status-pill normal" id="spo2-badge">
+                            <span class="material-symbols-outlined icon-filled" style="font-size:16px">check_circle</span>
+                            <span>Optimal</span>
+                        </div>
+                        <div class="vital-icon-box" style="background:rgba(6,182,212,0.15);color:var(--cyan-primary)">
+                            <span class="material-symbols-outlined icon-filled" style="font-size:40px">air</span>
+                        </div>
+                        <div style="text-align:center">
+                            <div style="display:flex;align-items:baseline;justify-content:center;gap:4px">
+                                <span class="vital-value-text" id="spo2-value" style="color:var(--cyan-primary)">--</span>
+                                <span style="font-size:28px;font-weight:700;color:var(--cyan-primary)">%</span>
+                            </div>
+                            <div class="vital-unit">Blood Oxygen (SpO2)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- SCREEN 6: Completion & Ticket            -->
+        <!-- ======================================== -->
+        <div class="screen completion-screen" id="screen-completion">
+            <div class="ticket-wrapper">
+                <div class="medical-ticket">
+                    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-glass);padding-bottom:20px">
+                        <div>
+                            <span style="color:var(--cyan-primary);font-weight:700;font-size:14px;letter-spacing:1px;text-transform:uppercase">Kiosk Intake Ticket</span>
+                            <h2 style="font-family:var(--font-heading);font-size:28px;margin-top:4px" id="summary-heading">Patient Medical Summary</h2>
+                        </div>
+                        <div style="text-align:right">
+                            <span style="font-size:12px;color:var(--text-muted)">TOKEN NO.</span>
+                            <div class="token-badge" id="token-display">#--</div>
+                        </div>
+                    </div>
+
+                    <div style="background:rgba(0,0,0,0.3);padding:20px;border-radius:var(--radius-md);border:1px solid var(--border-glass)">
+                        <p id="summary-text" style="font-size:16px;line-height:1.6;color:var(--text-secondary)">Generating intake summary...</p>
+                    </div>
+
+                    <div style="display:flex;gap:16px;margin-top:10px">
+                        <button class="btn-nav" style="flex:1;justify-content:center" onclick="showScreen('screen-chat')">Review Answers</button>
+                        <button class="btn-nav btn-nav-primary" style="flex:1;justify-content:center" onclick="startOver()">Finish & Reset</button>
+                    </div>
+                </div>
+
+                <h2 style="font-size:22px;color:var(--emerald-success)" id="completion-message">Registration Complete. Please take your token to Counter 4.</h2>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ============================================ -->
+    <!-- BOTTOM NAVIGATION (Hands-free Kiosk Controls)-->
+    <!-- ============================================ -->
+    <nav class="bottom-nav" id="bottom-nav">
+        <button class="btn-nav" id="btn-back" onclick="goBack()">
+            <span class="material-symbols-outlined" style="font-size:22px">arrow_back</span>
+            <span id="btn-back-text">Back</span>
+        </button>
+
+        <button class="btn-nav-mic" id="btn-nav-mic" onclick="toggleMic()" aria-label="Toggle Voice Input">
+            <span class="material-symbols-outlined icon-filled" style="font-size:32px">mic</span>
+        </button>
+
+        <button class="btn-nav btn-nav-primary" id="btn-next" onclick="goNext()">
+            <span id="btn-next-text">Next</span>
+            <span class="material-symbols-outlined" style="font-size:22px">arrow_forward</span>
+        </button>
+    </nav>
+</div>
+
+<script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>
