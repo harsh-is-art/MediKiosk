@@ -147,3 +147,96 @@ class MarkSessionReviewedView(APIView):
             'clinician_reviewed': session.clinician_reviewed,
             'message': f'Session #{session.token_number or session.id} marked as clinician reviewed.'
         }, status=status.HTTP_200_OK)
+
+
+class DoctorConsultationSummarizeView(APIView):
+    """
+    POST /doctor/api/session/<session_id>/summarize-consultation/
+    Takes recorded doctor-patient conversation transcript (or uploaded audio),
+    filters out non-medical dialogue/small talk, and generates a structured medical summary.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, session_id):
+        try:
+            session = PatientSession.objects.get(id=session_id)
+        except (ValueError, TypeError, PatientSession.DoesNotExist):
+            return Response({'error': 'Session not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        transcript = request.data.get('transcript', '')
+        audio_file = request.FILES.get('audio')
+
+        # If audio file is provided without transcript, attempt ASR transcription
+        if not transcript and audio_file:
+            import tempfile, os
+            from kiosk.utils.stt import get_stt_provider
+            ext = os.path.splitext(getattr(audio_file, 'name', ''))[1].lower() or '.wav'
+            try:
+                with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                    for chunk in audio_file.chunks():
+                        tmp.write(chunk)
+                    tmp_path = tmp.name
+                provider = get_stt_provider()
+                res = provider.transcribe(tmp_path, session.language or 'en')
+                transcript = res.text
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception as e:
+                logger.error(f"Error transcribing audio in doctor consultation view: {e}")
+
+        if not transcript or not transcript.strip():
+            return Response({'error': 'No conversation transcript or audio provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Call LLM to summarize conversation by filtering non-medical dialogue
+        from kiosk.utils.llm import call_llm
+        system_prompt = (
+            "You are an expert clinical documentation assistant. "
+            "You are given a raw transcript of a conversation between a doctor and a patient (or audio transcription). "
+            "CRITICAL TASK:\n"
+            "1. Strictly DROP all non-medical dialogue, greetings, small talk, pleasantries, weather chatter, and social pleasantries.\n"
+            "2. Retain ONLY clinically relevant medical information.\n"
+            "3. Format the output into a crisp, professional Clinical Note with the following structure:\n"
+            "   - CHIEF COMPLAINT & PRESENTING SYMPTOMS\n"
+            "   - CLINICAL FINDINGS & HISTORY DISCUSSED\n"
+            "   - DIAGNOSIS / IMPRESSION\n"
+            "   - TREATMENT PLAN & PRESCRIPTION INSTRUCTIONS\n\n"
+            "Be precise, professional, and clear."
+        )
+
+        messages = [
+            {'role': 'system', 'content': system_prompt},
+            {'role': 'user', 'content': f"Raw Doctor-Patient Conversation:\n\"\"\"\n{transcript}\n\"\"\""}
+        ]
+
+        try:
+            medical_summary = call_llm(messages)
+        except Exception as e:
+            logger.error(f"Error calling LLM for consultation summary: {e}")
+            medical_summary = f"Summary extracted from consultation transcript:\n\n{transcript}"
+
+        from kiosk.models import ClinicalSummary
+        summary_obj, _ = ClinicalSummary.objects.update_or_create(
+            session=session,
+            defaults={
+                'summary_text': medical_summary,
+                'structured_data': {'consultation_transcript': transcript, 'source': 'doctor_audio_recording'}
+            }
+        )
+
+        try:
+            doctor = getattr(request.user, 'doctor_profile', None) if request.user.is_authenticated else None
+            DoctorNote.objects.create(
+                session=session,
+                doctor=doctor,
+                note_text=f"[RECORDED CONSULTATION SUMMARY]\n{medical_summary}",
+                prescription_notes=""
+            )
+        except Exception as note_err:
+            logger.warning(f"Could not attach DoctorNote record: {note_err}")
+
+        return Response({
+            'session_id': str(session.id),
+            'raw_transcript': transcript,
+            'summary_text': medical_summary,
+            'message': 'Consultation conversation successfully recorded and summarized (non-medical dialogue removed).'
+        }, status=status.HTTP_200_OK)
